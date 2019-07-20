@@ -61,7 +61,7 @@ inline void program_init(OB::Parg& pg);
 
 inline void program_init(OB::Parg& pg)
 {
-  pg.name("lssa").version("0.0.0 (00.00.0000)");
+  pg.name("lssa").version("0.1.0 (19.07.2019)");
   pg.description("List similar artists.");
 
   pg.usage("[--colour <on|off|auto>] [--header|-H <key:value>...] [--count|-c <1-100>] <artist>...");

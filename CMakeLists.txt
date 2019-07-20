@@ -1,7 +1,7 @@
 cmake_minimum_required (VERSION 3.8 FATAL_ERROR)
 
 set (OB_TARGET "lssa")
-set (OB_VERSION "0.0.0 (00.00.0000)")
+set (OB_VERSION "0.1.0 (19.07.2019)")
 project (${OB_TARGET})
 
 message (">> Building ${OB_TARGET} ${OB_VERSION} in ${CMAKE_BUILD_TYPE} mode")
