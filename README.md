@@ -1,7 +1,7 @@
 # lssa
 List similar artists.
 
-[lssa](https://raw.githubusercontent.com/octobanana/lssa/master/assets/lssa.png)
+![lssa](https://raw.githubusercontent.com/octobanana/lssa/master/assets/lssa.png)
 
 ## Contents
 * [About](#about)
@@ -75,7 +75,7 @@ A new compiler can be installed through a third-party package manager such as __
 Assuming you have __Brew__ already installed, the following commands should install
 the latest __GCC__.
 
-```
+```sh
 brew install gcc
 brew link gcc
 ```
