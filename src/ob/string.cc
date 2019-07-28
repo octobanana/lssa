@@ -85,6 +85,16 @@ std::string replace(std::string str, std::string const& key, std::string const& 
   return str;
 }
 
+std::string replace(std::string str, std::vector<std::pair<std::string, std::string>> const& vals)
+{
+  for (auto const& [key, val] : vals)
+  {
+    str = replace(str, key, val);
+  }
+
+  return str;
+}
+
 std::string to_string(double const val, int const pre)
 {
   std::stringstream ss;

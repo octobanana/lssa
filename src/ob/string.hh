@@ -63,6 +63,8 @@ namespace OB::String
 std::string replace(std::string str, std::string const& key, std::string const& val,
   std::size_t size = std::numeric_limits<std::size_t>::max());
 
+std::string replace(std::string str, std::vector<std::pair<std::string, std::string>> const& vals);
+
 std::string to_string(double const val, int const pre = 2);
 
 std::vector<std::string> split(std::string const& str, std::string const& delim,
