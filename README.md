@@ -1,7 +1,10 @@
 # lssa
 List similar artists.
 
-![lssa](https://raw.githubusercontent.com/octobanana/lssa/master/assets/lssa.png)
+
+[![lssa](https://raw.githubusercontent.com/octobanana/lssa/master/assets/lssa.png)](https://octobanana.com/software/lssa/blob/assets/lssa.mp4#file)
+
+Click the above image to view a video of __lssa__ in action.
 
 ## Contents
 * [About](#about)
