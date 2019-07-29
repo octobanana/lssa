@@ -107,6 +107,7 @@ inline void program_init(OB::Parg& pg)
   pg.set("colour", "auto", "on|off|auto", "Print the program info output with colour either on, off, or auto based on if stdout is a tty, the default value is 'auto'.");
   pg.set("count,c", "10", "1-100", "The maximum number of matches to find for each artist, the default value is '10'.");
   pg.set("header,H", {}, "key:value", "Pass a custom HTTP request header, this option can be used multiple times.", true);
+  pg.set("ignore-case,i", "Ignore artist case and use titlecase.");
 
   // allow and capture positional arguments
   pg.set_pos();

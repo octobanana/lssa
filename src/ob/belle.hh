@@ -1043,12 +1043,20 @@ class Http final
 {
 public:
 
-  enum Status
+  struct Status
   {
-    connecting = 0,
-    open,
-    closing,
-    closed,
+    enum
+    {
+      closed = 0,
+      closing,
+      resolving,
+      connecting,
+      handshaking,
+      error,
+      open,
+      reading,
+      writing,
+    };
   };
 
   struct Session_Ctx
@@ -1143,6 +1151,9 @@ public:
 
     void do_timer()
     {
+      _timer.cancel();
+      _timer.expires_after(_attr->timeout);
+
       // wait on the timer
       _timer.async_wait(
         net::bind_executor(_strand,
@@ -1185,7 +1196,7 @@ public:
 
     void do_resolve()
     {
-      _timer.expires_after(_attr->timeout);
+      _attr->status = Status::resolving;
 
       // domain name server lookup
       _resolver.async_resolve(_attr->address,
@@ -1208,6 +1219,8 @@ public:
 
         return;
       }
+
+      _attr->status = Status::connecting;
 
       // connect to the endpoint
       net::async_connect(derived().socket().lowest_layer(),
@@ -1253,8 +1266,9 @@ public:
     void do_write()
     {
       prepare_req();
+      do_timer();
 
-      _timer.expires_after(_attr->timeout);
+      _attr->status = Status::writing;
 
       // Send the HTTP request
       http::async_write(derived().socket(), _ctx.req,
@@ -1270,6 +1284,8 @@ public:
     void on_write(error_code ec_, std::size_t bytes_)
     {
       boost::ignore_unused(bytes_);
+
+      _attr->status = Status::open;
 
       if (ec_)
       {
@@ -1296,6 +1312,9 @@ public:
     {
       // clear the HTTP response
       _ctx.res = {};
+      do_timer();
+
+      _attr->status = Status::reading;
 
       // Receive the HTTP response
       http::async_read(derived().socket(), _buf, _ctx.res,
@@ -1311,6 +1330,8 @@ public:
     void on_read(error_code ec_, std::size_t bytes_)
     {
       boost::ignore_unused(bytes_);
+
+      _attr->status = Status::open;
 
       if (ec_)
       {
@@ -1350,6 +1371,8 @@ public:
 
     void on_error(error_code const& ec_ = {})
     {
+      _attr->status = Status::error;
+
       if (_attr->on_error)
       {
         try
@@ -1559,6 +1582,8 @@ public:
 
     void do_handshake()
     {
+      _attr->status = Status::handshaking;
+
       // perform the ssl handshake
       _socket.async_handshake(ssl::stream_base::client,
         net::bind_executor(_strand,
@@ -1623,31 +1648,12 @@ public:
     {
       cancel_timer();
 
-      // ignore eof error
-      if (ec_ == net::error::eof)
-      {
-        ec_.assign(0, ec_.category());
-      }
-
-      // ignore not_connected error
-      if (ec_ && ec_ != boost::system::errc::not_connected)
-      {
-        on_error(ec_);
-
-        return;
-      }
+      // ignore errors
+      ec_.assign(0, ec_.category());
 
       // close the socket
       _socket.next_layer().close(ec_);
       _attr->status = Status::closed;
-
-      // ignore not_connected error
-      if (ec_ && ec_ != boost::system::errc::not_connected)
-      {
-        on_error(ec_);
-
-        return;
-      }
 
       if (_attr->on_close)
       {
@@ -1867,6 +1873,11 @@ public:
     return _attr->status;
   }
 
+  std::string const& status_string()
+  {
+    return _status_string.at(static_cast<std::size_t>(_attr->status));
+  }
+
   bool read()
   {
     if (_session)
@@ -1908,6 +1919,18 @@ public:
   }
 
 private:
+
+  std::vector<std::string> const _status_string {
+    "closed",
+    "closing",
+    "resolving",
+    "connecting",
+    "handshaking",
+    "error",
+    "open",
+    "reading",
+    "writing",
+  };
 
   // the io context
   net::io_context& _io;

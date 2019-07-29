@@ -63,6 +63,7 @@ SOFTWARE.
 #include <utility>
 #include <sstream>
 #include <iostream>
+#include <unordered_map>
 
 namespace Belle = OB::Belle;
 namespace String = OB::String;
@@ -84,11 +85,13 @@ public:
   void do_timer();
   void on_timer(Belle::error_code const& ec_);
   void update_progress();
+  void update_wait();
 
-  void artists(std::vector<std::string> const& str_);
+  void artists(std::vector<std::string> const& val_, bool const ignore_case_ = false);
   void count(std::size_t const val_);
   void headers(std::vector<std::string> const& val_);
   void progress(bool const val_);
+  void color(bool const val_);
 
   void run();
   void print_artist();
@@ -103,28 +106,38 @@ private:
   std::string const _address {"www.last.fm"};
 
   // artist regex
-  std::string const _rx {"href=\"/music/([^/.]+?)\""};
+  std::string const _rx {"href=\"/music/([^/]+?)\"\\s+"};
 
   // total number of redirects to follow per artist
   std::size_t const _redirect_total {3};
 
+  // total number of pages to request per artist
+  std::size_t const _page_total {10};
+
   // update / timer interval
   std::chrono::milliseconds const _interval {100};
+
+  // total request wait time
+  // std::chrono::milliseconds const _wait_total {1000};
 
   // progress output char values
   std::string const _progress_str {"-\\|/"};
 
   // HTTP response status code
-  int _status;
+  int _http_status;
 
-  // HTTP error response message
-  std::string _reason;
+  // HTTP error message
+  std::string _http_reason;
+
+  // current request wait time
+  // std::chrono::milliseconds _wait_count;
 
   // artist result
   struct Result
   {
     // the artist
     std::string artist;
+    std::string artist_lowercase;
 
     // the artist formatted for use in url
     std::string artist_url;
@@ -182,6 +195,9 @@ private:
     {"accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
     {"user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.142 Safari/537.36"},
   };
+
+  // when true, use color in output
+  bool _color {false};
 
   // when true, progress is output to stderr
   bool _progress {false};
