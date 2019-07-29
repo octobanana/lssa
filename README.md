@@ -20,6 +20,10 @@ List similar artists.
 ## About
 __lssa__ is a CLI program for the terminal that accepts one or more music artists as arguments and returns a list of similar artists.
 
+By default, the output of each given artist will list 10 similar artists. This number can be set explicitly using the `--count|-c <1-100>` option.
+
+The results are sourced from the similar artist pages from __last.fm__.
+
 ## Usage
 View the usage and help output with the `--help` or `-h` flag,
 or `./help.txt` to view the help output as a plain text file.
