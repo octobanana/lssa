@@ -64,24 +64,37 @@ inline void program_init(OB::Parg& pg)
   pg.name("lssa").version("0.2.0 (28.07.2019)");
   pg.description("List similar artists.");
 
-  pg.usage("[--colour <on|off|auto>] [--header|-H <key:value>...] [--count|-c <1-100>] <artist>...");
-  pg.usage("[--help|-h] [--colour <on|off|auto>]");
-  pg.usage("[--version|-v] [--colour <on|off|auto>]");
-  pg.usage("[--license] [--colour <on|off|auto>]");
+  pg.usage("[--colour=<on|off|auto>] [-c|--count=<1-100>] [-H|--header=<key:value>]... [-i|--ignore-case] <artist>...");
+  pg.usage("[--colour=<on|off|auto>] -h|--help");
+  pg.usage("[--colour=<on|off|auto>] -v|--version");
+  pg.usage("[--colour=<on|off|auto>] --license");
 
   pg.info({"Examples", {
-    {"", "lssa <artist>"},
-    {"", "lssa -c20 <artist>"},
-    {"", "lssa -H 'user-agent:custom user agent string' -H 'dnt:1' <artist>"},
-    {"", "lssa --help --colour=off"},
-    {"", "lssa --help"},
-    {"", "lssa --version"},
-    {"", "lssa --license"},
+    {"lssa <artist>",
+      "list 10 similar artists to <artist>"},
+    {"lssa <artist-1> <artist-2>",
+      "list 10 similar artists for each <artist-n>"},
+    {"lssa -c 20 <artist>",
+      "list 20 similar artists to <artist>"},
+    {"lssa -H 'user-agent:custom user agent string' -H 'dnt:1' <artist>",
+      "list 10 similar artists to <artist> and pass custom HTTP request headers"},
+    {"lssa --help --colour=off",
+      "print the help output, without colour"},
+    {"lssa --help",
+      "print the help output"},
+    {"lssa --version",
+      "print the program version"},
+    {"lssa --license",
+      "print the program license"},
   }});
 
   pg.info({"Exit Codes", {
     {"0", "normal"},
     {"1", "error"},
+  }});
+
+  pg.info({"Remotes", {
+    {"", "https://www.last.fm/music/<artist>/+similar"},
   }});
 
   pg.info({"Repository", {
@@ -104,7 +117,7 @@ inline void program_init(OB::Parg& pg)
   pg.set("license", "Print the program license.");
 
   // options
-  pg.set("colour", "auto", "on|off|auto", "Print the program info output with colour either on, off, or auto based on if stdout is a tty, the default value is 'auto'.");
+  pg.set("colour", "auto", "on|off|auto", "Print the program output with colour either on, off, or auto based on if stdout is a tty, the default value is 'auto'.");
   pg.set("count,c", "10", "1-100", "The maximum number of matches to find for each artist, the default value is '10'.");
   pg.set("header,H", {}, "key:value", "Pass a custom HTTP request header, this option can be used multiple times.", true);
   pg.set("ignore-case,i", "Ignore artist case and use titlecase.");
