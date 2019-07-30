@@ -217,20 +217,14 @@ void App::color(bool const val_)
 
 void App::run()
 {
-  _sig.on_signal({SIGINT, SIGTERM}, [&](auto const& /*ec*/, auto /*sig*/) {
-    // std::cerr << "\nEvent: " << Belle::Signal::str(sig) << "\n";
+  _sig.on_signal({SIGINT, SIGTERM}, [&](auto const& /*ec*/, auto sig) {
     _io.stop();
+    _reconnect = false;
+    _http_reason = Belle::Signal::str(sig);
   });
   _sig.wait();
 
-  _http.on_error([&](auto& ctx)
-  {
-    _http_reason = ctx.ec.message();
-    _http.close();
-    _timer.cancel();
-  });
-
-  _http.on_open([&](auto& /*ctx*/)
+  // init request
   {
     for (auto const& [k, v] : _headers)
     {
@@ -241,21 +235,28 @@ void App::run()
     _req.method(Belle::Method::get);
     _req.params().emplace("page", std::to_string(_results.at(_result_index).page_count));
     _req.target("/music/" + _results.at(_result_index).artist_url + "/+similar");
+  }
 
+  _http.on_error([&](auto& ctx)
+  {
+    _http_reason = ctx.ec.message();
+    _http.close();
+    _timer.cancel();
+  });
+
+  _http.on_open([&](auto& /*ctx*/)
+  {
     _http.write(_req);
   });
 
   _http.on_read([&](auto& ctx)
   {
-    // std::cerr << "Response Head:\n" << ctx.res.base() << "\n";
-    // std::cerr << "Response Body:\n" << ctx.res.body() << "\n";
-
+    _reconnect = false;
     _http_status = static_cast<int>(ctx.res.result_int());
 
     if (_http_status != 200)
     {
-      if (_http_status != 301 && _http_status != 302 &&
-        ctx.res["location"].empty())
+      if (_http_status != 301 && _http_status != 302 && ctx.res["location"].empty())
       {
         _http_reason = std::string(ctx.res.reason());
         _http.close();
@@ -271,34 +272,25 @@ void App::run()
         return;
       }
 
+      auto const redirect = String::match(std::string(ctx.res["location"]), std::regex("^https://www.last.fm/music/(.+?)/\\+similar.*$", std::regex::icase));
+
+      if (! redirect)
+      {
+        _http_reason = "invalid redirect URL (" + std::string(ctx.res["location"]) + ")";
+        _http.close();
+      }
+
       ++_results.at(_result_index).redirect_count;
-      auto const redirect = std::string(ctx.res["location"]);
 
-      auto const begin = redirect.find("/music/") + 7;
-      if (begin == std::string::npos)
-      {
-        _http_reason = "invalid redirect";
-        _http.close();
-
-        return;
-      }
-
-      auto const end = redirect.find("/+similar", begin);
-      if (end == std::string::npos)
-      {
-        _http_reason = "invalid redirect";
-        _http.close();
-
-        return;
-      }
-
-      _results.at(_result_index).artist_url = redirect.substr(begin, end - begin);
+      _results.at(_result_index).artist_url = redirect->at(1);
       _results.at(_result_index).artist = String::replace(Belle::Util::url_decode(_results.at(_result_index).artist_url), {{"&amp;", "&"}, {"%2B", "+"}});
       _results.at(_result_index).artist_lowercase = String::lowercase(_results.at(_result_index).artist);
 
       _req.params().clear();
       _req.params().emplace("page", std::to_string(_results.at(_result_index).page_count));
       _req.target("/music/" + _results.at(_result_index).artist_url + "/+similar");
+
+      _reconnect = true;
 
       _http.write(_req);
 
@@ -396,12 +388,12 @@ void App::run()
     _req.params().clear();
     _req.params().emplace("page", std::to_string(_results.at(_result_index).page_count));
     _req.target("/music/" + _results.at(_result_index).artist_url + "/+similar");
+
     _http.write(_req);
   });
 
   _http.on_write([&](auto& /*ctx*/)
   {
-    // std::cerr << "Request Head:\n" << ctx.req.base() << "\n";
     _http.read();
   });
 
@@ -411,10 +403,14 @@ void App::run()
     _io.stop();
   });
 
-  do_timer();
-
-  _http.run();
-  _io.run();
+  do
+  {
+    do_timer();
+    _http.run();
+    _io.run();
+    _io.restart();
+  }
+  while (_reconnect);
 
   if (_http_reason.size())
   {
