@@ -1,8 +1,7 @@
 # lssa
 List similar artists.
 
-
-[![lssa](https://raw.githubusercontent.com/octobanana/lssa/master/assets/lssa.png)](https://octobanana.com/software/lssa/blob/assets/lssa.mp4#file)
+[![lssa](https://raw.githubusercontent.com/octobanana/lssa/master/res/lssa.png)](https://octobanana.com/software/lssa/blob/res/lssa.mp4#file)
 
 Click the above image to view a video of __lssa__ in action.
 
@@ -21,20 +20,21 @@ Click the above image to view a video of __lssa__ in action.
 * [License](#license)
 
 ## About
-__lssa__ is a CLI program for the terminal that accepts one or more music artists as arguments and returns a list of similar artists.
+__lssa__ is a CLI program for the terminal that accepts one or more music
+artists as arguments and returns a list of similar artists.
 
-By default, the output of each given artist will list 10 similar artists. This number can be set explicitly using the `--count|-c <1-100>` option.
+By default, the output of each given artist will list 10 similar artists.
+This number can be set explicitly using the `-c|--count=<1-100>` option.
 
 The results are sourced from the similar artist pages from __last.fm__.
 
 ## Usage
-View the usage and help output with the `--help` or `-h` flag,
-or `./help.txt` to view the help output as a plain text file.
+View the usage and help output with the `-h|--help` flag,
+or as a plain text file in `./doc/help.txt`.
 
 ## Pre-Build
 This section describes what environments this program may run on,
-any prior requirements or dependencies needed,
-and any third party libraries used.
+any prior requirements or dependencies needed, and any third party libraries used.
 
 > #### Important
 > Any shell commands using relative paths are expected to be executed in the
@@ -51,28 +51,28 @@ and any third party libraries used.
 * __Apple Clang__ >= 11.0.0 (untested)
 
 ### Dependencies
-* __ZLib__
-* __PThread__
-* __OpenSSL__ >= 1.1.0
 * __CMake__ >= 3.8
-* __ICU__ >= 62.1
 * __Boost__ >= 1.68.0
+* __ICU__ >= 62.1
+* __OpenSSL__ >= 1.1.0
+* __PThread__
+* __ZLib__
 
 ### Linked Libraries
-* __z__ (libz) ZLib library for gzip and deflate compression
-* __ssl__ (libssl) part of the OpenSSL library
-* __crypto__ (libcrypto) part of the OpenSSL library
-* __pthread__ (libpthread) POSIX threads library
-* __icuuc__ (libicuuc) part of the ICU library
-* __icui18n__ (libicui18n) part of the ICU library
-* __boost_system__ (libboost_system) part of the Boost library
 * __boost_iostreams__ (libboost_iostreams) part of the Boost library
+* __boost_system__ (libboost_system) part of the Boost library
+* __crypto__ (libcrypto) part of the OpenSSL library
+* __icui18n__ (libicui18n) part of the ICU library
+* __icuuc__ (libicuuc) part of the ICU library
+* __pthread__ (libpthread) POSIX threads library
+* __ssl__ (libssl) part of the OpenSSL library
+* __z__ (libz) ZLib library for gzip and deflate compression
 
 ### Included Libraries
-* [__Parg__](https://github.com/octobanana/parg):
-  for parsing CLI args, modified and included as `./src/ob/parg.hh`
 * [__Belle__](https://github.com/octobanana/belle):
   HTTP client, modified and included as `./src/ob/belle.hh`
+* [__Parg__](https://github.com/octobanana/parg):
+  for parsing CLI args, modified and included as `./src/ob/parg.hh`
 
 ### macOS
 Using a new version of __GCC__ or __Clang__ is __required__, as the default
@@ -87,26 +87,26 @@ brew install gcc
 brew link gcc
 ```
 
-The following CMake argument will then need to be appended to the end of the line when running the build script.
+The following CMake argument will then need to be appended to the end of the line when running the shell script.
 Remember to replace the placeholder `<path-to-g++>` with the canonical path to the new __g++__ compiler binary.
 
 ```sh
-./build.sh -DCMAKE_CXX_COMPILER='<path-to-g++>'
+./RUNME.sh build -- -DCMAKE_CXX_COMPILER='<path-to-g++>'
 ```
 
 ## Build
-The following shell command will build the project in release mode:
+The included shell script will build the project in release mode using the `build` subcommand:
+
 ```sh
-./build.sh
+./RUNME.sh build'
 ```
-To build in debug mode, run the script with the `--debug` flag.
 
 ## Install
-The following shell command will install the project in release mode:
+The included shell script will install the project in release mode using the `install` subcommand:
+
 ```sh
-./install.sh
+./RUNME.sh install'
 ```
-To install in debug mode, run the script with the `--debug` flag.
 
 ## License
 This project is licensed under the MIT License.
