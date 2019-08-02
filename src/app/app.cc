@@ -45,6 +45,72 @@ SOFTWARE.
 
 #include "app/app.hh"
 
+void App::artists(std::vector<std::string> const& val_, bool const ignore_case_)
+{
+  for (auto const& e : val_)
+  {
+    auto& res = _results.emplace_back(Result());
+    res.artist = ignore_case_ ? String::titlecase(e) : e;
+    res.artist_url = Belle::Util::url_encode(res.artist);
+    res.artist_lowercase = String::lowercase(e);
+  }
+}
+
+void App::color(bool const val_)
+{
+  _color = val_;
+}
+
+void App::count(std::size_t const val_)
+{
+  _match_total = val_;
+}
+
+void App::headers(std::vector<std::string> const& val_)
+{
+  for (auto const& kv : val_)
+  {
+    auto const k_v = String::split_view(kv, ":", 1);
+
+    if (k_v.size() == 2)
+    {
+      _headers[String::trim(std::string(k_v.at(0)))] = String::trim(std::string(k_v.at(1)));
+    }
+  }
+}
+
+void App::progress(bool const val_)
+{
+  _progress = val_;
+}
+
+void App::run()
+{
+  signal_init();
+
+  http_init();
+
+  for (;;)
+  {
+    do_timer();
+    _http.run();
+    _io.run();
+
+    if (! _reconnect)
+    {
+      break;
+    }
+
+    _io.restart();
+    std::this_thread::sleep_for(_wait_total);
+  }
+
+  if (_http_reason.size())
+  {
+    throw std::runtime_error(_http_reason.c_str());
+  }
+}
+
 void App::do_timer()
 {
   if (_progress)
@@ -122,6 +188,28 @@ void App::on_timer(Belle::error_code const& ec_)
   do_timer();
 }
 
+void App::update_wait()
+{
+  auto const match_count = _results.at(_result_index).match.size();
+
+  if (_result_index + 1 == _results.size() && match_count >= _match_total)
+  {
+    return;
+  }
+  else if (match_count < _match_total)
+  {
+    std::this_thread::sleep_for(_interval);
+    _wait_count += _interval;
+
+    return;
+  }
+
+  if (_wait_count < _wait_total)
+  {
+    std::this_thread::sleep_for(_wait_total - _wait_count);
+  }
+}
+
 void App::update_progress()
 {
   if (_progress)
@@ -166,81 +254,24 @@ void App::update_progress()
   update_wait();
 }
 
-void App::update_wait()
-{
-  if (_result_index + 1 == _results.size() && _results.at(_result_index).match.size() >= _match_total)
-  {
-    return;
-  }
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(_interval));
-}
-
-void App::artists(std::vector<std::string> const& val_, bool const ignore_case_)
-{
-  for (auto const& e : val_)
-  {
-    auto& res = _results.emplace_back(Result());
-    res.artist = ignore_case_ ? String::titlecase(e) : e;
-    res.artist_url = Belle::Util::url_encode(res.artist);
-    res.artist_lowercase = String::lowercase(e);
-  }
-}
-
-void App::count(std::size_t const val_)
-{
-  _match_total = val_;
-}
-
-void App::headers(std::vector<std::string> const& val_)
-{
-  for (auto const& kv : val_)
-  {
-    auto const k_v = String::split_view(kv, ":", 1);
-
-    if (k_v.size() == 2)
-    {
-      _headers.emplace_back(String::trim(std::string(k_v.at(0))), String::trim(std::string(k_v.at(1))));
-    }
-  }
-}
-
-void App::progress(bool const val_)
-{
-  _progress = val_;
-}
-
-void App::color(bool const val_)
-{
-  _color = val_;
-}
-
-void App::run()
+void App::signal_init()
 {
   _sig.on_signal({SIGINT, SIGTERM}, [&](auto const& /*ec*/, auto sig) {
     _io.stop();
     _reconnect = false;
     _http_reason = Belle::Signal::str(sig);
   });
+
   _sig.wait();
+}
 
-  // init request
-  {
-    for (auto const& [k, v] : _headers)
-    {
-      _req.set(k, v);
-    }
-
-    _req.keep_alive(true);
-    _req.method(Belle::Method::get);
-    _req.params().emplace("page", std::to_string(_results.at(_result_index).page_count));
-    _req.target("/music/" + _results.at(_result_index).artist_url + "/+similar");
-  }
+void App::http_init()
+{
+  http_init_request();
 
   _http.on_error([&](auto& ctx)
   {
-    _http_reason = ctx.ec.message();
-    _http.close();
+    http_close(ctx.ec.message());
     _timer.cancel();
   });
 
@@ -251,6 +282,7 @@ void App::run()
 
   _http.on_read([&](auto& ctx)
   {
+    _wait_count = std::chrono::milliseconds(0);
     _reconnect = false;
     _http_status = static_cast<int>(ctx.res.result_int());
 
@@ -258,117 +290,41 @@ void App::run()
     {
       if (_http_status != 301 && _http_status != 302 && ctx.res["location"].empty())
       {
-        _http_reason = std::string(ctx.res.reason());
-        _http.close();
+        http_close(std::string(ctx.res.reason()));
 
         return;
       }
 
-      if (_results.at(_result_index).redirect_count >= _redirect_total)
-      {
-        _http_reason = "redirect limit reached (" + std::to_string(_redirect_total) + ")";
-        _http.close();
-
-        return;
-      }
-
-      auto const redirect = String::match(std::string(ctx.res["location"]), std::regex("^https://www.last.fm/music/(.+?)/\\+similar.*$", std::regex::icase));
-
-      if (! redirect)
-      {
-        _http_reason = "invalid redirect URL (" + std::string(ctx.res["location"]) + ")";
-        _http.close();
-      }
-
-      ++_results.at(_result_index).redirect_count;
-
-      _results.at(_result_index).artist_url = redirect->at(1);
-      _results.at(_result_index).artist = String::replace(Belle::Util::url_decode(_results.at(_result_index).artist_url), {{"&amp;", "&"}, {"%2B", "+"}});
-      _results.at(_result_index).artist_lowercase = String::lowercase(_results.at(_result_index).artist);
-
-      _req.params().clear();
-      _req.params().emplace("page", std::to_string(_results.at(_result_index).page_count));
-      _req.target("/music/" + _results.at(_result_index).artist_url + "/+similar");
-
-      _reconnect = true;
-
-      _http.write(_req);
+      http_redirect(ctx);
 
       return;
     }
 
-    // handle results
+    _page = std::move(ctx.res.body());
+
+    if (_page.empty())
     {
-      _page = std::move(ctx.res.body());
+      http_close("received empty response");
 
-      if (_page.empty())
-      {
-        _http_reason = "received empty response";
-        _http.close();
-
-        return;
-      }
-
-      _it.match(_rx, _page);
-
-      if (_it.empty())
-      {
-        _http_reason = "no matches found";
-        _http.close();
-
-        return;
-      }
-
-      _timer.cancel();
-
-      auto& result = _results.at(_result_index);
-
-      if (result.page_count == 1)
-      {
-        print_artist();
-      }
-
-      std::string artist;
-      std::unordered_map<std::string, std::string> cache;
-
-      for (auto const& match : _it)
-      {
-        artist = match.group.at(0);
-
-        if (auto const cached = cache.find(artist);
-          cached != cache.end())
-        {
-          artist = cached->second;
-        }
-        else
-        {
-          artist = String::replace(Belle::Util::url_decode(artist), {{"&amp;", "&"}, {"%2B", "+"}});
-        }
-
-        if (artist.at(0) != ' ' &&
-          String::lowercase(artist) == result.artist_lowercase)
-        {
-          continue;
-        }
-
-        if (auto const it = result.match.insert(artist); it.second)
-        {
-          result.index.emplace_back(it.first);
-
-          update_progress();
-
-          if (result.match.size() >= _match_total)
-          {
-            break;
-          }
-        }
-      }
+      return;
     }
+
+    _it.match(_rx_artist, _page);
+
+    if (_it.empty())
+    {
+      http_close("no matches found");
+
+      return;
+    }
+
+    handle_results();
 
     ++_results.at(_result_index).page_count;
 
-    if (_results.at(_result_index).match.size() >= _match_total ||
-      _results.at(_result_index).page_count > _page_total)
+    auto const& result = _results.at(_result_index);
+
+    if (result.match.size() >= _match_total || result.page_count > _page_total)
     {
       print_results();
 
@@ -376,8 +332,7 @@ void App::run()
 
       if (_result_index >= _results.size())
       {
-        _http_reason.clear();
-        _http.close();
+        http_close();
 
         return;
       }
@@ -385,11 +340,7 @@ void App::run()
       do_timer();
     }
 
-    _req.params().clear();
-    _req.params().emplace("page", std::to_string(_results.at(_result_index).page_count));
-    _req.target("/music/" + _results.at(_result_index).artist_url + "/+similar");
-
-    _http.write(_req);
+    http_next();
   });
 
   _http.on_write([&](auto& /*ctx*/)
@@ -402,23 +353,119 @@ void App::run()
     _timer.cancel();
     _io.stop();
   });
+}
 
-  do
+void App::http_init_request()
+{
+  auto const& result = _results.at(_result_index);
+
+  for (auto const& [k, v] : _headers)
   {
-    do_timer();
-    _http.run();
-    _io.run();
-    _io.restart();
+    _req.set(k, v);
   }
-  while (_reconnect);
 
-  if (_http_reason.size())
+  _req.keep_alive(true);
+  _req.method(Belle::Method::get);
+  _req.params().emplace("page", std::to_string(result.page_count));
+  _req.target(artist_target(result.artist_url));
+}
+
+void App::http_next()
+{
+  auto const& result = _results.at(_result_index);
+
+  _req.params().clear();
+  _req.params().emplace("page", std::to_string(result.page_count));
+  _req.target(artist_target(result.artist_url));
+
+  _http.write(_req);
+}
+
+void App::http_redirect(Belle::Client::Http::Session_Ctx const& ctx_)
+{
+  if (_results.at(_result_index).redirect_count >= _redirect_total)
   {
-    throw std::runtime_error(_http_reason.c_str());
+    http_close("redirect limit reached (" + std::to_string(_redirect_total) + ")");
+
+    return;
+  }
+
+  auto const redirect = String::match(std::string(ctx_.res["location"]), _rx_redirect);
+
+  if (! redirect)
+  {
+    http_close("invalid redirect URL (" + std::string(ctx_.res["location"]) + ")");
+
+    return;
+  }
+
+  _reconnect = true;
+  ++_results.at(_result_index).redirect_count;
+
+  auto& result = _results.at(_result_index);
+
+  result.artist_url = redirect->at(1);
+  result.artist = String::replace(Belle::Util::url_decode(result.artist_url),
+    {{"&amp;", "&"}, {"%2B", "+"}});
+  result.artist_lowercase = String::lowercase(result.artist);
+
+  http_next();
+}
+
+void App::http_close(std::string const& msg_)
+{
+  _http_reason = msg_;
+  _http.close();
+}
+
+void App::handle_results()
+{
+  std::string artist;
+  std::unordered_map<std::string, std::string> cache;
+  auto& result = _results.at(_result_index);
+
+  _timer.cancel();
+
+  if (result.page_count == 1)
+  {
+    print_artist();
+  }
+
+  for (auto const& match : _it)
+  {
+    artist = match.group.at(0);
+
+    if (auto const cached = cache.find(artist);
+      cached != cache.end())
+    {
+      artist = cached->second;
+    }
+    else
+    {
+      artist = String::replace(Belle::Util::url_decode(artist), {{"&amp;", "&"}, {"%2B", "+"}});
+    }
+
+    if (artist.at(0) != ' ' &&
+      String::lowercase(artist) == result.artist_lowercase)
+    {
+      continue;
+    }
+
+    if (auto const it = result.match.insert(artist); it.second)
+    {
+      result.index.emplace_back(it.first);
+
+      update_progress();
+
+      if (result.match.size() >= _match_total)
+      {
+        break;
+      }
+    }
   }
 }
 
-void App::print_artist()
+void App::print_artist() const
 {
   if (_progress)
   {
@@ -448,7 +495,7 @@ void App::print_artist()
   }
 }
 
-void App::print_results()
+void App::print_results() const
 {
   if (_progress)
   {
@@ -489,4 +536,9 @@ void App::print_results()
     std::cout
     << std::flush;
   }
+}
+
+std::string App::artist_target(std::string const& artist_) const
+{
+  return "/music/" + artist_ + "/+similar";
 }

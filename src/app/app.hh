@@ -82,22 +82,35 @@ public:
   App& operator=(App&&) = delete;
   App& operator=(App const&) = delete;
 
-  void do_timer();
-  void on_timer(Belle::error_code const& ec_);
-  void update_progress();
-  void update_wait();
-
   void artists(std::vector<std::string> const& val_, bool const ignore_case_ = false);
+  void color(bool const val_);
   void count(std::size_t const val_);
   void headers(std::vector<std::string> const& val_);
   void progress(bool const val_);
-  void color(bool const val_);
 
   void run();
-  void print_artist();
-  void print_results();
 
 private:
+
+  void do_timer();
+  void on_timer(Belle::error_code const& ec_);
+
+  void update_wait();
+  void update_progress();
+
+  void signal_init();
+
+  void http_init();
+  void http_init_request();
+  void http_next();
+  void http_redirect(Belle::Client::Http::Session_Ctx const& ctx_);
+  void http_close(std::string const& msg_ = {});
+
+  void handle_results();
+
+  void print_artist() const;
+  void print_results() const;
+  std::string artist_target(std::string const& artist_) const;
 
   // HTTP connect port
   unsigned short const _port {443};
@@ -106,7 +119,10 @@ private:
   std::string const _address {"www.last.fm"};
 
   // artist regex
-  std::string const _rx {"href=\"/music/([^/]+?)\"\\s+"};
+  std::string const _rx_artist {"href=\"/music/([^/]+?)\"\\s+"};
+
+  // redirect regex
+  std::regex const _rx_redirect {"^https://www.last.fm/music/(.+?)/\\+similar.*$", std::regex::icase};
 
   // total number of redirects to follow per artist
   std::size_t const _redirect_total {3};
@@ -118,28 +134,21 @@ private:
   std::chrono::milliseconds const _interval {100};
 
   // total request wait time
-  // std::chrono::milliseconds const _wait_total {1000};
+  std::chrono::milliseconds const _wait_total {1000};
 
   // progress output char values
   std::string const _progress_str {"-\\|/"};
 
-  // HTTP response status code
-  int _http_status;
-
-  // HTTP error message
-  std::string _http_reason;
-
-  // current request wait time
-  // std::chrono::milliseconds _wait_count;
-
   // artist result
   struct Result
   {
-    // the artist
+    // artist
     std::string artist;
+
+    // artist in lowercase
     std::string artist_lowercase;
 
-    // the artist formatted for use in url
+    // artist formatted for use in url
     std::string artist_url;
 
     // current page number
@@ -154,37 +163,23 @@ private:
     // insert ordered iterators to similar artist matches
     std::vector<decltype(match)::const_iterator> index;
   }; // struct Result
+
   using Results = std::vector<Result>;
 
-  // the io context
-  Belle::io _io {1};
-
-  // capture and handle signals
-  Belle::Signal _sig {_io};
-
-  // the results
+  // artist results
   Results _results;
 
-  // current index position in the results
-  std::size_t _result_index {0};
+  // when true, use color in output
+  bool _color {false};
+
+  // when true, progress is output to stderr
+  bool _progress {false};
 
   // total number of matches to find per artist
   std::size_t _match_total {0};
 
-  // buffer for HTTP response body
-  std::string _page;
-
-  // regex iterator
-  OB::Text::Regex _it;
-
-  // the HTTP request, reused for each subsequent request
-  Belle::Request _req;
-
-  // the HTTP client
-  Belle::Client::Http _http {_io, _address, _port, true};
-
   // default HTTP request headers to use
-  std::vector<std::pair<std::string, std::string>> _headers {
+  std::unordered_map<std::string, std::string> _headers {
     {"host", _address},
     {"dnt", "1"},
     {"pragma", "no-cache"},
@@ -199,14 +194,38 @@ private:
   // when true, reconnect socket if closed
   bool _reconnect {false};
 
-  // when true, use color in output
-  bool _color {false};
+  // HTTP response status code
+  int _http_status {0};
 
-  // when true, progress is output to stderr
-  bool _progress {false};
+  // current index position in the results
+  std::size_t _result_index {0};
+
+  // current request wait time
+  std::chrono::milliseconds _wait_count {0};
 
   // current index position in the progress string
   std::size_t _progress_index {0};
+
+  // buffer for HTTP response body
+  std::string _page;
+
+  // HTTP error message
+  std::string _http_reason;
+
+  // regex iterator
+  OB::Text::Regex _it;
+
+  // HTTP request, reused for each subsequent request
+  Belle::Request _req;
+
+  // io context
+  Belle::io _io {1};
+
+  // capture and handle signals
+  Belle::Signal _sig {_io};
+
+  // HTTP client
+  Belle::Client::Http _http {_io, _address, _port, true};
 
   // timer for progress output
   Belle::net::high_resolution_timer _timer {_io, _interval};

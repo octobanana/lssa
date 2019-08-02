@@ -71,29 +71,38 @@ int main(int argc, char** argv)
   if (pg_status > 0) return 0;
   if (pg_status < 0) return 1;
 
+  auto const color = pg.get<std::string>("colour") == "auto" ?
+    Term::is_term(STDOUT_FILENO) : pg.get<std::string>("colour") == "on";
+
   try
   {
     App app;
 
     app.artists(pg.get_pos_vec(), pg.get<bool>("ignore-case"));
+    app.color(color);
     app.count(pg.get<std::size_t>("count"));
     app.headers(pg.get_all<std::string>("header"));
     app.progress(Term::is_term(STDERR_FILENO));
-
-    auto const color = pg.get<std::string>("colour");
-    app.color(color == "auto" ? Term::is_term(STDOUT_FILENO) : color == "on");
 
     app.run();
   }
   catch(std::exception const& e)
   {
-    std::cerr << "\nError: " << e.what() << "\n";
+    std::cerr
+    << "\n"
+    << aec::wrap("Error: ", pg.style.error, color)
+    << e.what()
+    << "\n";
 
     return 1;
   }
   catch(...)
   {
-    std::cerr << "\nError: an unexpected error occurred\n";
+    std::cerr
+    << "\n"
+    << aec::wrap("Error: ", pg.style.error, color)
+    << "an unexpected error occurred"
+    << "\n";
 
     return 1;
   }
