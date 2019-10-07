@@ -98,14 +98,14 @@ Remember to replace the placeholder `<path-to-g++>` with the canonical path to t
 The included shell script will build the project in release mode using the `build` subcommand:
 
 ```sh
-./RUNME.sh build'
+./RUNME.sh build
 ```
 
 ## Install
 The included shell script will install the project in release mode using the `install` subcommand:
 
 ```sh
-./RUNME.sh install'
+./RUNME.sh install
 ```
 
 ## License
